@@ -11,10 +11,11 @@
 #pragma link "trayicon"
 #pragma resource "*.dfm"
 TForm1 *Form1;
-TIniFile *Ini = new TIniFile("D:\OPTIONS.ini");
+TIniFile *Ini = new TIniFile("OPTIONS.ini");
 HWND hwndPreview;
 bool preview = true;
 bool messageExit;
+bool tray = false;
 //---------------------------------------------------------------------------
 __fastcall TForm1::TForm1(TComponent* Owner)
         : TForm(Owner)
@@ -72,25 +73,29 @@ void __fastcall TForm1::FormCreate(TObject *Sender)
     Panel1->Width,
     Panel1->Height,
     (HWND) Panel1->Handle, 0);
-
-    capDriverConnect(hwndPreview, 0);
-    capPreviewScale(hwndPreview, true);
-    capPreviewRate(hwndPreview, 66);
-    capPreview(hwndPreview, true);
-
-    TrayIcon1->Visible = true;
-
-    messageExit = Ini->ReadBool("Settings", "MessageExit", true);
+    //GetDesktopWindow()
+    if(hwndPreview != NULL){
+        if(!capDriverConnect(hwndPreview, 0))
+                ShowMessage("Ошибка при подключении к веб-камере!");
+        capPreviewScale(hwndPreview, true);
+        capPreviewRate(hwndPreview, 66);
+        capPreview(hwndPreview, true);
+    } else {
+        ShowMessage("Ошибка при создании окна вебки!");
+    }
+    //TrayIcon1->Visible = true;  включил в настройках проекта
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FormCloseQuery(TObject *Sender, bool &CanClose)
 {
+        if(!tray){
+        messageExit = Ini->ReadBool("Settings", "MessageExit", true);
         TModalResult res = Ini->ReadInteger("Settings", "OptionExit", mrYes);
 
         if(messageExit){
                 bool checkv=false;  //checkbox  value
                 res = CheckMessageDialog(
-                        "Свернуть программу в трей?",
+                        "Свернуть программу в поддон?",
                         "Вопрос всей жизни",
                         "Запомнить мой ответ",
                         &checkv,
@@ -107,7 +112,7 @@ void __fastcall TForm1::FormCloseQuery(TObject *Sender, bool &CanClose)
         case mrYes:
                 CanClose = false;
                 capPreview(hwndPreview, false);
-                ShowWindow(Form1->Handle, SW_HIDE);
+                TrayIcon1->Minimize();
                 break;
         case mrCancel:
                 CanClose = false;
@@ -116,14 +121,9 @@ void __fastcall TForm1::FormCloseQuery(TObject *Sender, bool &CanClose)
                 CanClose = true;
                 break;
         }
+        }
 }
-//---------------------------------------------------------------------------
 
-void __fastcall TForm1::TrayIcon1Click(TObject *Sender)
-{
-        ShowWindow(Form1->Handle, SW_SHOW);
-        capPreview(hwndPreview, true);
-}
 //---------------------------------------------------------------------------
 
 void __fastcall TForm1::ButtonSettingsClick(TObject *Sender)
@@ -150,6 +150,63 @@ void __fastcall TForm1::ButtonResetClick(TObject *Sender)
 {
         Ini->EraseSection("Settings");
         messageExit = true;
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::ButtonScreenshotClick(TObject *Sender)
+{
+        AnsiString name = "screen_" + FormatDateTime("ddmmmyyyy_hh_mm_ss",Now()) + ".bmp";
+        AnsiString path = ExtractFilePath(Application->ExeName) + "screenshots\\" + name;
+        if(!DirectoryExists("screenshots"))
+                CreateDir("screenshots");
+        capFileSaveDIB(hwndPreview, path.c_str());
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Timer1Timer(TObject *Sender)
+{
+        //TODO сравнивать снимки
+        /*capFileSaveDIB(hwndPreview,"TEST.bmp");
+        capCaptureSingleFrameOpen(hwndPreview);
+        capCaptureSingleFrame(hwndPreview);
+        capCaptureSingleFrameClose(hwndPreview);*/
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::ButtonSaveClick(TObject *Sender)
+{
+        //TODO еще уиножить на 60
+        Timer1->Interval = Edit1->Text.ToInt()*1000;
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::TrayIcon1Restore(TObject *Sender)
+{
+        if(preview)
+                capPreview(hwndPreview, true);
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+        if(!DirectoryExists("screenshots"))
+                CreateDir("screenshots");
+        AnsiString screenshots = ExtractFilePath(Application->ExeName)+"\\screenshots\\";
+        ShellExecute(NULL, "open", screenshots.c_str(), NULL,NULL,SW_SHOWNORMAL);
+}
+//---------------------------------------------------------------------------
+
+
+void __fastcall TForm1::N3Click(TObject *Sender)
+{
+        tray = true;
+        Form1->Close();
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::N2Click(TObject *Sender)
+{
+        Timer1->Enabled = false;
 }
 //---------------------------------------------------------------------------
 
