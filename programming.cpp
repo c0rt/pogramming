@@ -11,9 +11,9 @@
 #pragma link "trayicon"
 #pragma resource "*.dfm"
 TForm1 *Form1;
-TIniFile *Ini = new TIniFile("options.ini");
+TIniFile *Ini = new TIniFile("D:\OPTIONS.ini");
 HWND hwndPreview;
-bool preview = false;
+bool preview = true;
 bool messageExit;
 //---------------------------------------------------------------------------
 __fastcall TForm1::TForm1(TComponent* Owner)
@@ -66,16 +66,20 @@ TModalResult CheckMessageDialog(AnsiString Message, AnsiString Caption,
 void __fastcall TForm1::FormCreate(TObject *Sender)
 {
     hwndPreview = capCreateCaptureWindow (
-    TEXT("My Capture Window"),   
-    WS_CHILD | WS_VISIBLE,       
+    TEXT("My Capture Window"),
+    WS_CHILD | WS_VISIBLE,
     0, 0,
     Panel1->Width,
     Panel1->Height,
     (HWND) Panel1->Handle, 0);
+
     capDriverConnect(hwndPreview, 0);
-    capPreviewScale(hwndPreview,TRUE);
+    capPreviewScale(hwndPreview, true);
     capPreviewRate(hwndPreview, 66);
+    capPreview(hwndPreview, true);
+
     TrayIcon1->Visible = true;
+
     messageExit = Ini->ReadBool("Settings", "MessageExit", true);
 }
 //---------------------------------------------------------------------------
@@ -84,34 +88,39 @@ void __fastcall TForm1::FormCloseQuery(TObject *Sender, bool &CanClose)
         TModalResult res = Ini->ReadInteger("Settings", "OptionExit", mrYes);
 
         if(messageExit){
-                bool checkv=true;  //checkbox  value
+                bool checkv=false;  //checkbox  value
                 res = CheckMessageDialog(
                         "Свернуть программу в трей?",
                         "Вопрос всей жизни",
-                        "Не показывать это сообщение снова",
+                        "Запомнить мой ответ",
                         &checkv,
                         mtConfirmation,
                         TMsgDlgButtons() << mbYes << mbNo  << mbCancel);
-                if(checkv){
+                if(checkv && res != mrCancel){
                         Ini->WriteBool("Settings", "MessageExit", false);
-                        Ini->WriteInteger("Settings", "OptionExit", )
+                        Ini->WriteInteger("Settings", "OptionExit", res);
+                        messageExit = false;
                 }
         }
-        ShowMessage("Check box " + AnsiString(checkv ? "checked":"not cheked") + "\n dialog result:" + AnsiString(res));
 
-        if(res == mrYes) {
+        switch(res){
+        case mrYes:
                 CanClose = false;
                 capPreview(hwndPreview, false);
                 ShowWindow(Form1->Handle, SW_HIDE);
-        }
-        if(res == mrYes)
+                break;
+        case mrCancel:
                 CanClose = false;
+                break;
+        case mrNo:
+                CanClose = true;
+                break;
+        }
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TForm1::TrayIcon1Click(TObject *Sender)
 {
-        //TrayIcon1->Visible = false;
         ShowWindow(Form1->Handle, SW_SHOW);
         capPreview(hwndPreview, true);
 }
@@ -131,7 +140,16 @@ void __fastcall TForm1::ButtonPreviewClick(TObject *Sender)
 {
         preview = preview ? false : true;
         capPreview(hwndPreview, preview);
+        if(!preview)
+                Panel1->Color = clMenu;
 }
 //---------------------------------------------------------------------------
 
+
+void __fastcall TForm1::ButtonResetClick(TObject *Sender)
+{
+        Ini->EraseSection("Settings");
+        messageExit = true;
+}
+//---------------------------------------------------------------------------
 
